@@ -3085,6 +3085,9 @@ static int __msm_release(struct msm_sync *sync)
 		msm_queue_drain(&sync->pict_q, list_pict);
 		msm_queue_drain(&sync->event_q, list_config);
 
+#ifdef CONFIG_MSM_CAMERA_WAKELOCK
+		wake_unlock(&sync->wake_lock);
+#endif
 		pm_qos_update_request(&sync->idle_pm_qos, PM_QOS_DEFAULT_VALUE);
 		sync->apps_id = NULL;
 		sync->core_powered_on = 0;
@@ -3745,6 +3748,9 @@ static int __msm_open(struct msm_cam_device *pmsm, const char *const apps_id,
 	sync->apps_id = apps_id;
 
 	if (!sync->core_powered_on && !is_controlnode) {
+#ifdef CONFIG_MSM_CAMERA_WAKELOCK		
+		wake_lock(&sync->wake_lock);
+#endif
 		pm_qos_update_request(&sync->idle_pm_qos,
 			msm_cpuidle_get_deep_idle_latency());
 
@@ -3960,11 +3966,17 @@ static int msm_sync_init(struct msm_sync *sync,
 	msm_queue_init(&sync->pict_q, "pict");
 	msm_queue_init(&sync->vpe_q, "vpe");
 
+#ifdef CONFIG_MSM_CAMERA_WAKELOCK
+	wake_lock_init(&sync->wake_lock, WAKE_LOCK_SUSPEND, "msm_camera");
+#endif
 	pm_qos_add_request(&sync->idle_pm_qos, PM_QOS_CPU_DMA_LATENCY,
 		PM_QOS_DEFAULT_VALUE);
 
 	rc = msm_camio_probe_on(pdev);
 	if (rc < 0) {
+#ifdef CONFIG_MSM_CAMERA_WAKELOCK		
+		wake_lock_destroy(&sync->wake_lock);
+#endif
 		pm_qos_remove_request(&sync->idle_pm_qos);
 		return rc;
 	}
@@ -3978,6 +3990,9 @@ static int msm_sync_init(struct msm_sync *sync,
 		pr_err("%s: failed to initialize %s\n",
 			__func__,
 			sync->sdata->sensor_name);
+#ifdef CONFIG_MSM_CAMERA_WAKELOCK		
+		wake_lock_destroy(&sync->wake_lock);
+#endif
 		pm_qos_remove_request(&sync->idle_pm_qos);
 		return rc;
 	}
@@ -3997,6 +4012,9 @@ static int msm_sync_init(struct msm_sync *sync,
 
 static int msm_sync_destroy(struct msm_sync *sync)
 {
+#ifdef CONFIG_MSM_CAMERA_WAKELOCK
+	wake_lock_destroy(&sync->wake_lock);
+#endif
 	pm_qos_remove_request(&sync->idle_pm_qos);
 	return 0;
 }

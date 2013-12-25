@@ -22,7 +22,8 @@
 #include <linux/regulator/consumer.h>
 #include "sensor_ctrl.h"
 
-#undef F_PANTECH_CAMERA_LOG_PRINTK
+//#undef F_PANTECH_CAMERA_LOG_PRINTK
+#define F_PANTECH_CAMERA_LOG_PRINTK
 
 #ifdef F_PANTECH_CAMERA_LOG_PRINTK
 #define SKYCDBG(fmt, args...) printk(KERN_INFO "SKYCDBG: " fmt, ##args)

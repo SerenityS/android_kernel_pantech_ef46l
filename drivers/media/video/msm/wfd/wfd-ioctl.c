@@ -154,7 +154,7 @@ static int wfd_allocate_ion_buffer(struct ion_client *client,
 		bool secure, struct mem_region *mregion)
 {
 	struct ion_handle *handle;
-	void *kvaddr, *phys_addr;
+	void *kvaddr = NULL, *phys_addr = NULL;
 	unsigned long size;
 	unsigned int alloc_regions = 0;
 	int rc;
@@ -163,7 +163,7 @@ static int wfd_allocate_ion_buffer(struct ion_client *client,
 	alloc_regions |= secure ? ION_SECURE :
 				ION_HEAP(ION_IOMMU_HEAP_ID);
 	handle = ion_alloc(client,
-			mregion->size, SZ_4K, alloc_regions, 0);
+			mregion->size, SZ_4K, alloc_regions);
 
 	if (IS_ERR_OR_NULL(handle)) {
 		WFD_MSG_ERR("Failed to allocate input buffer\n");
@@ -171,7 +171,7 @@ static int wfd_allocate_ion_buffer(struct ion_client *client,
 		goto alloc_fail;
 	}
 
-	kvaddr = ion_map_kernel(client, handle);
+	kvaddr = ion_map_kernel(client, handle, secure ? UNCACHED : CACHED);
 
 	if (IS_ERR_OR_NULL(kvaddr)) {
 		WFD_MSG_ERR("Failed to get virtual addr\n");
@@ -210,7 +210,9 @@ static int wfd_allocate_ion_buffer(struct ion_client *client,
 	return rc;
 alloc_fail:
 	if (!IS_ERR_OR_NULL(handle)) {
-		ion_unmap_kernel(client, handle);
+		if (!IS_ERR_OR_NULL(kvaddr))
+			ion_unmap_kernel(client, handle);
+
 		ion_free(client, handle);
 
 		mregion->kvaddr = NULL;
@@ -1075,7 +1077,8 @@ static int wfdioc_s_parm(struct file *filp, void *fh,
 	struct v4l2_qcom_frameskip frameskip;
 	int64_t frame_interval, max_frame_interval;
 	void *extendedmode = NULL;
-	enum vsg_modes mode = VSG_MODE_VFR;
+	enum vsg_modes vsg_mode = VSG_MODE_VFR;
+	enum venc_framerate_modes venc_mode = VENC_MODE_VFR;
 
 
 	if (a->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
@@ -1125,7 +1128,8 @@ static int wfdioc_s_parm(struct file *filp, void *fh,
 			goto set_parm_fail;
 
 		max_frame_interval = (int64_t)frameskip.maxframeinterval;
-		mode = VSG_MODE_VFR;
+		vsg_mode = VSG_MODE_VFR;
+		venc_mode = VENC_MODE_VFR;
 
 		rc = v4l2_subdev_call(&wfd_dev->vsg_sdev, core,
 				ioctl, VSG_SET_MAX_FRAME_INTERVAL,
@@ -1133,18 +1137,23 @@ static int wfdioc_s_parm(struct file *filp, void *fh,
 
 		if (rc)
 			goto set_parm_fail;
-
-		rc = v4l2_subdev_call(&wfd_dev->vsg_sdev, core,
-				ioctl, VSG_SET_MODE, &mode);
-
-		if (rc)
-			goto set_parm_fail;
 	} else {
-		mode = VSG_MODE_CFR;
-		rc = v4l2_subdev_call(&wfd_dev->vsg_sdev, core,
-				ioctl, VSG_SET_MODE, &mode);
+		vsg_mode = VSG_MODE_CFR;
+		venc_mode = VENC_MODE_CFR;
+	}
 
-		if (rc)
+		rc = v4l2_subdev_call(&wfd_dev->vsg_sdev, core,
+			ioctl, VSG_SET_MODE, &vsg_mode);
+	if (rc) {
+		WFD_MSG_ERR("Setting FR mode for VSG failed\n");
+			goto set_parm_fail;
+	}
+
+	rc = v4l2_subdev_call(&wfd_dev->enc_sdev, core,
+			ioctl, SET_FRAMERATE_MODE,
+			&venc_mode);
+	if (rc) {
+		WFD_MSG_ERR("Setting FR mode for VENC failed\n");
 			goto set_parm_fail;
 	}
 
@@ -1543,10 +1552,6 @@ static int __devinit __wfd_probe(struct platform_device *pdev)
 	}
 
 	wfd_priv = pdev->dev.platform_data;
-	if (wfd_priv && wfd_priv->wfd_check_mdp_iommu_split) {
-		wfd_dev->mdp_iommu_split_domain =
-			wfd_priv->wfd_check_mdp_iommu_split();
-	}
 
 	pdev->dev.platform_data = (void *) wfd_dev;
 
@@ -1590,6 +1595,11 @@ static int __devinit __wfd_probe(struct platform_device *pdev)
 		mutex_init(&wfd_dev[c].dev_lock);
 		wfd_dev[c].ion_client = ion_client;
 		wfd_dev[c].in_use = false;
+		if (wfd_priv && wfd_priv->wfd_check_mdp_iommu_split) {
+			wfd_dev[c].mdp_iommu_split_domain =
+				wfd_priv->wfd_check_mdp_iommu_split();
+		}
+
 		switch (WFD_DEVICE_NUMBER_BASE + c) {
 		case WFD_DEVICE_SECURE:
 			wfd_dev[c].secure_device = true;

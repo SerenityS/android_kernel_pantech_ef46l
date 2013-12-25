@@ -115,11 +115,6 @@ struct wcd9xxx_micbias_setting {
 	u8 bias2_cap_mode;
 	u8 bias3_cap_mode;
 	u8 bias4_cap_mode;
-	u8 bias1_ext_cap:1;
-	u8 bias2_ext_cap:1;
-	u8 bias3_ext_cap:1;
-	u8 bias4_ext_cap:1;
-
 };
 
 struct wcd9xxx_ocp_setting {
@@ -130,7 +125,7 @@ struct wcd9xxx_ocp_setting {
 	unsigned int	hph_ocp_limit:3; /* Headphone OCP current limit */
 };
 
-#define MAX_REGULATOR	7
+#define MAX_REGULATOR	6
 /*
  *      format : TABLA_<POWER_SUPPLY_PIN_NAME>_CUR_MAX
  *

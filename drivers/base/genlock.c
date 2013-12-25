@@ -31,16 +31,8 @@
 #define _RDLOCK  GENLOCK_RDLOCK
 #define _WRLOCK GENLOCK_WRLOCK
 
-//#define CONFIG_QCOM_GENLOCK_DEBUG 	1 	// p13447 shinjg
-
 #define GENLOCK_LOG_ERR(fmt, args...) \
 pr_err("genlock: %s: " fmt, __func__, ##args)
-
-#if defined(CONFIG_QCOM_GENLOCK_DEBUG) 
-#define GENLOCK_LOG_INFO(fmt, args...) \
-pr_info("genlock: %s: " fmt, __func__, ##args)
-#endif
-
 
 /* The genlock magic stored in the kernel private data is used to protect
  * against the possibility of user space passing a valid fd to a
@@ -65,9 +57,6 @@ struct genlock_handle {
 	struct file *file;        /* File structure associated with handle */
 	int active;		  /* Number of times the active lock has been
 				     taken */
-#if defined(CONFIG_QCOM_GENLOCK_DEBUG) 
-	pid_t pid;                /* Process pid that opened this handle */
-#endif
 };
 
 /*
@@ -127,6 +116,7 @@ static const struct file_operations genlock_fops = {
 struct genlock *genlock_create_lock(struct genlock_handle *handle)
 {
 	struct genlock *lock;
+	void *ret;
 
 	if (IS_ERR_OR_NULL(handle)) {
 		GENLOCK_LOG_ERR("Invalid handle\n");
@@ -156,8 +146,13 @@ struct genlock *genlock_create_lock(struct genlock_handle *handle)
 	 * other processes
 	 */
 
-	lock->file = anon_inode_getfile("genlock", &genlock_fops,
-		lock, O_RDWR);
+	ret = anon_inode_getfile("genlock", &genlock_fops, lock, O_RDWR);
+	if (IS_ERR_OR_NULL(ret)) {
+		GENLOCK_LOG_ERR("Unable to create lock inode\n");
+		kfree(lock);
+		return ret;
+	}
+	lock->file = ret;
 
 	/* Attach the new lock to the handle */
 	handle->lock = lock;
@@ -262,23 +257,6 @@ static int handle_has_lock(struct genlock *lock, struct genlock_handle *handle)
 
 	return 0;
 }
-
-#if defined(CONFIG_QCOM_GENLOCK_DEBUG) 
-/* Helper function that logs the pid(s) of the handle(s) holding a lock */
-static void log_lock_state(const char* name, struct genlock *lock, int op)
-{
-	int i = 0;
-	struct genlock_handle *h;
-
-	GENLOCK_LOG_INFO("%s: lock=%p, pid=%i, state=%i, op=%i\n",
-		name, lock, task_tgid_nr(current), lock->state, op);
-	list_for_each_entry(h, &lock->active, entry) {
-		if(h->lock == lock) {
-			GENLOCK_LOG_INFO("holder(%i) pid=%i\n", i++, h->pid);
-		}
-	}
-}
-#endif
 
 /* If the lock just became available, signal the next entity waiting for it */
 
@@ -430,9 +408,6 @@ static int _genlock_lock(struct genlock *lock, struct genlock_handle *handle,
 	while ((lock->state == _RDLOCK && op == _WRLOCK) ||
 			lock->state == _WRLOCK) {
 		signed long elapsed;
-#if defined(CONFIG_QCOM_GENLOCK_DEBUG) 
-		log_lock_state("wait", lock, op);
-#endif
 
 		spin_unlock_irqrestore(&lock->lock, irqflags);
 
@@ -445,11 +420,6 @@ static int _genlock_lock(struct genlock *lock, struct genlock_handle *handle,
 
 		if (elapsed <= 0) {
 			ret = (elapsed < 0) ? elapsed : -ETIMEDOUT;
-#if defined(CONFIG_QCOM_GENLOCK_DEBUG) 
-			if(ret == -ETIMEDOUT) {
-				log_lock_state("timeout", lock, op);
-			}
-#endif
 			goto done;
 		}
 
@@ -684,9 +654,6 @@ static struct genlock_handle *_genlock_get_handle(void)
 		GENLOCK_LOG_ERR("Unable to allocate memory for the handle\n");
 		return ERR_PTR(-ENOMEM);
 	}
-#if defined(CONFIG_QCOM_GENLOCK_DEBUG) 
-	handle->pid = task_tgid_nr(current);
-#endif
 
 	return handle;
 }
@@ -699,12 +666,19 @@ static struct genlock_handle *_genlock_get_handle(void)
 
 struct genlock_handle *genlock_get_handle(void)
 {
+	void *ret;
 	struct genlock_handle *handle = _genlock_get_handle();
 	if (IS_ERR(handle))
 		return handle;
 
-	handle->file = anon_inode_getfile("genlock-handle",
+	ret = anon_inode_getfile("genlock-handle",
 		&genlock_handle_fops, handle, O_RDWR);
+	if (IS_ERR_OR_NULL(ret)) {
+		GENLOCK_LOG_ERR("Unable to create handle inode\n");
+		kfree(handle);
+		return ret;
+	}
+	handle->file = ret;
 
 	return handle;
 }
