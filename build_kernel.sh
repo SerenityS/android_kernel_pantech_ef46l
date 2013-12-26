@@ -9,7 +9,7 @@
 # set toolchain
 ##############################################################################
 export ARCH=arm
-export CROSS_COMPILE=/home/thinhhoang/arm-eabi-4.6/bin/arm-eabi-
+export CROSS_COMPILE=/home/thinhhoang/android/arm-eabi-4.6/bin/arm-eabi-
 
 ##############################################################################
 # make zImage
