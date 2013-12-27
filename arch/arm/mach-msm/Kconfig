@@ -176,8 +176,8 @@ config ARCH_MSM8960
 	select MSM_RUN_QUEUE_STATS
 	select ARM_HAS_SG_CHAIN
 	select MSM_KRAIT_WFE_FIXUP
-	select MSM_IOMMU_GPU_SYNC
 	select MSM_CPU_PWRCTL
+	select MSM_IOMMU_GPU_SYNC
 
 config ARCH_MSM8930
 	bool "MSM8930"
@@ -210,8 +210,8 @@ config ARCH_MSM8930
 	select HOLES_IN_ZONE if SPARSEMEM
 	select ARM_HAS_SG_CHAIN
 	select MSM_KRAIT_WFE_FIXUP
-	select MSM_IOMMU_GPU_SYNC
 	select MSM_CPU_PWRCTL
+	select MSM_IOMMU_GPU_SYNC
 
 config ARCH_APQ8064
 	bool "APQ8064"
@@ -239,8 +239,8 @@ config ARCH_APQ8064
 	select ARCH_SUPPORTS_MSI
 	select ARM_HAS_SG_CHAIN
 	select MSM_KRAIT_WFE_FIXUP
-	select MSM_IOMMU_GPU_SYNC
 	select MSM_CPU_PWRCTL
+	select MSM_IOMMU_GPU_SYNC
 
 config ARCH_MSM8974
 	bool "MSM8974"
@@ -1001,12 +1001,15 @@ config PHYS_OFFSET
 	default "0x40200000" if ARCH_MSM8X60
 	default "0x10000000"
 
-config KERNEL_PMEM_EBI_REGION
-	bool "Enable in-kernel PMEM region for EBI"
+config KERNEL_MSM_CONTIG_MEM_REGION
+	bool "Enable in-kernel contiguous memory region"
 	default y if ARCH_MSM8X60
 	depends on ANDROID_PMEM && (ARCH_MSM8X60 || ARCH_MSM8960 || ARCH_MSM8974)
 	help
-	   Enable the in-kernel PMEM allocator to use EBI memory.
+	   Enable the in-kernel contiguous memory allocator. Sets up a
+	   region of physically contiguous memory. This memory is
+	   reserved during initialization, and can be used
+	   generically.
 
 config KERNEL_PMEM_SMI_REGION
 	bool "Enable in-kernel PMEM region for SMI"
