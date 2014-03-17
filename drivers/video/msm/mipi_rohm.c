@@ -925,16 +925,16 @@ case 5:
 	wdb[1] = 113;
 	break;
 case 4:
-	wdb[1] = 100;
+	wdb[1] = 90;
 	break;
 case 3:
-	wdb[1] = 88;
+	wdb[1] = 60;
 	break;
 case 2:
-	wdb[1] = 76;
+	wdb[1] = 40;
 	break;
 case 1:
-	wdb[1] = 63;
+	wdb[1] = 23;
 	break;
 case 0:
 	wdb[1] = 0;
